@@ -3,76 +3,54 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Assets Creator - Pixel Art</title>
+  <title>Assets Creator - Dashboard</title>
   <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-  <div id="app">
-    <header>
+<body class="dashboard-body">
+  <div class="dashboard">
+    <header class="dashboard-header">
       <h1>Assets Creator</h1>
-      <div class="controls">
-        <label>Width: <input type="number" id="canvas-width" value="32" min="1" max="500"></label>
-        <label>Height: <input type="number" id="canvas-height" value="32" min="1" max="500"></label>
-        <label>Pixel: <input type="number" id="pixel-size" value="10" min="4" max="100"></label>
-        <button id="apply-size">Apply</button>
-        <label>Modelo:
-          <input type="text" id="model-input" value="openai/gpt-oss-120b" placeholder="nome-do-modelo">
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="limit-groq" checked> Limitar Groq
-        </label>
-      </div>
+      <p class="dashboard-subtitle">Ferramenta de criação e detecção de pixel art com IA</p>
     </header>
-    <main>
-      <div class="canvas-area">
-        <div id="canvas-wrapper">
-          <canvas id="pixel-canvas"></canvas>
+    <div class="dashboard-grid">
+      <a href="/creator" class="dashboard-card">
+        <div class="card-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18"/>
+            <path d="M9 3v18"/>
+          </svg>
         </div>
-        <div class="canvas-tools">
-          <div class="palette-container">
-            <span class="palette-label">Paleta:</span>
-            <div id="palette-swatches"></div>
-          </div>
-          <input type="color" id="color-picker" value="#ff0000">
-          <button id="undo-btn">Undo</button>
-          <button id="clear-btn">Clear</button>
+        <h2>Pixel Art Creator</h2>
+        <p>Crie pixel arts usando comandos de texto com IA. Desenhe, edite e refine suas artes com a ajuda do modelo Groq.</p>
+        <div class="card-features">
+          <span>Canvas redimensionável</span>
+          <span>Paleta de cores</span>
+          <span>Chat com IA</span>
+          <span>Histórico de versões</span>
         </div>
-        <div class="history-bar">
-          <div class="history-bar-header">
-            <span>Versões</span>
-            <button id="history-bar-toggle" class="log-toggle-btn">▼</button>
-          </div>
-          <div id="history-bar-content" class="history-bar-content"></div>
+        <span class="card-link">Acessar Creator →</span>
+      </a>
+      <a href="/detect" class="dashboard-card">
+        <div class="card-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <path d="M11 8v6"/>
+            <path d="M8 11h6"/>
+          </svg>
         </div>
-      </div>
-      <div class="chat-area">
-        <div id="chat-messages"></div>
-        <div class="chat-input">
-          <input type="text" id="chat-input" placeholder="Ex: desenhe um pixel vermelho no centro...">
-          <button id="chat-send">Send</button>
-          <button id="stop-btn" style="display:none">Parar</button>
+        <h2>Detecção de Pixel Art</h2>
+        <p>Faça upload de uma pixel art e deixe a IA identificar o que ela representa. Extrai automaticamente a paleta de cores.</p>
+        <div class="card-features">
+          <span>Upload de imagem</span>
+          <span>Extração de paleta</span>
+          <span>Grid de texto</span>
+          <span>Exportar dados</span>
         </div>
-        <div class="log-panel">
-          <div class="log-header">
-            <span>Log do servidor</span>
-            <button id="log-toggle" class="log-toggle-btn">▼</button>
-          </div>
-          <div id="log-content"></div>
-        </div>
-      </div>
-    </main>
-  </div>
-  <div id="confirm-overlay" class="confirm-overlay" style="display:none">
-    <div class="confirm-dialog">
-      <div class="confirm-title">Confirmação necessária</div>
-      <div id="confirm-message" class="confirm-message"></div>
-      <div class="confirm-buttons">
-        <button id="confirm-yes" class="confirm-btn confirm-btn-yes">Permitir</button>
-        <button id="confirm-no" class="confirm-btn confirm-btn-no">Negar</button>
-      </div>
+        <span class="card-link">Acessar Detect →</span>
+      </a>
     </div>
   </div>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/app.js"></script>
 </body>
 </html>

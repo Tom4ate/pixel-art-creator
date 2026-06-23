@@ -5,14 +5,25 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { CanvasState } from './canvas/state.js';
 import { agentLoop } from './agent/loop.js';
+import { ChatGroq } from '@langchain/groq';
 import 'dotenv/config';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer);
+const io = new Server(httpServer, {
+  maxHttpBufferSize: 5e6,
+});
 
 app.use(express.static(join(__dirname, 'public')));
+
+app.get('/creator', (req, res) => {
+  res.sendFile(join(__dirname, 'public', 'creator.html'));
+});
+
+app.get('/detect', (req, res) => {
+  res.sendFile(join(__dirname, 'public', 'detect.html'));
+});
 
 const canvasState = new CanvasState(32, 32);
 const activeControllers = new Map();
@@ -117,6 +128,51 @@ io.on('connection', (socket) => {
       clearTimeout(pending.timer);
       pending.resolve(approved);
       pendingConfirmations.delete(requestId);
+    }
+  });
+
+  socket.on('detect-image', async (data) => {
+    const { textGrid, palette, width, height, model } = data;
+    if (!textGrid) return;
+
+    const detectModel = new ChatGroq({
+      apiKey: process.env.GROQ_API_KEY,
+      model: model || process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+      temperature: 0.3,
+      maxTokens: 1024,
+    });
+
+    socket.emit('detect-loading', true);
+
+    try {
+      const paletteStr = palette && palette.length > 0
+        ? `\nColor palette:\n${palette.map(c => `  ${c}`).join('\n')}`
+        : '';
+
+      const response = await detectModel.invoke([
+        {
+          role: 'system',
+          content: `You are a pixel art analyzer. Your task is to analyze a pixel art image represented as a text grid and determine what it depicts.
+
+The grid uses letters to represent colors. Look at the shape, form, and arrangement of pixels to identify the subject.
+
+Respond with a concise description of what the pixel art represents (1-3 sentences). Be specific about the subject. If it's abstract or unclear, say so. Always respond in the same language as the prompt.`,
+        },
+        {
+          role: 'user',
+          content: `Analyze this ${width}x${height} pixel art and tell me what it represents:\n\n${textGrid}${paletteStr}`,
+        },
+      ]);
+
+      const result = typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content);
+
+      socket.emit('detect-result', { result });
+    } catch (err) {
+      socket.emit('detect-error', { message: err.message });
+    } finally {
+      socket.emit('detect-loading', false);
     }
   });
 

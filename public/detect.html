@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detect - Assets Creator</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Assets Creator</h1>
+      <span class="header-subtitle">Detect</span>
+      <div class="controls">
+        <label>Modelo:
+          <input type="text" id="detect-model-input" value="openai/gpt-oss-120b" placeholder="nome-do-modelo">
+        </label>
+      </div>
+      <a href="/" class="dashboard-link">Dashboard</a>
+    </header>
+    <main class="detect-layout">
+      <div class="detect-left">
+        <div class="detect-card">
+          <h2>Upload de Imagem</h2>
+          <div class="upload-area" id="upload-area">
+            <div class="upload-placeholder" id="upload-placeholder">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p>Arraste uma imagem ou clique para selecionar</p>
+              <span class="upload-hint">Pixel art com até 64x64</span>
+            </div>
+            <canvas id="upload-canvas" style="display:none"></canvas>
+            <div class="upload-preview" id="upload-preview" style="display:none">
+              <img id="preview-img" alt="Preview">
+              <button id="change-image-btn" class="detect-btn detect-btn-secondary">Trocar imagem</button>
+            </div>
+          </div>
+          <input type="file" id="file-input" accept="image/*" style="display:none">
+          <div class="detect-info" id="detect-info" style="display:none">
+            <div class="info-row">
+              <span class="info-label">Dimensões:</span>
+              <span id="detect-dims">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Cores na paleta:</span>
+              <span id="detect-palette-count">—</span>
+            </div>
+          </div>
+          <button id="detect-btn" class="detect-btn detect-btn-primary" style="display:none" disabled>
+            Detectar
+          </button>
+          <div id="detect-loading" class="detect-loading" style="display:none">
+            <div class="spinner"></div>
+            <span>Analisando imagem...</span>
+          </div>
+        </div>
+        <div class="detect-card">
+          <h2>Paleta Extraída</h2>
+          <div class="detect-palette" id="detect-palette">
+            <span class="palette-empty">—</span>
+          </div>
+        </div>
+      </div>
+      <div class="detect-right">
+        <div class="detect-card detect-card-result">
+          <h2>Grid de Texto</h2>
+          <div class="text-grid-container">
+            <pre id="text-grid-output" class="text-grid-output">Nenhuma imagem enviada.</pre>
+            <button id="copy-grid-btn" class="detect-btn detect-btn-small">Copiar</button>
+          </div>
+        </div>
+        <div class="detect-card detect-card-result">
+          <h2>Resultado da Detecção</h2>
+          <div id="detect-result" class="detect-result-text">
+            <span class="palette-empty">Aguardando detecção...</span>
+          </div>
+          <div id="detect-export-area" style="display:none">
+            <h3>String de Exportação</h3>
+            <pre id="export-string" class="export-string"></pre>
+            <button id="copy-export-btn" class="detect-btn detect-btn-small">Copiar string</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/detect.js"></script>
+</body>
+</html>
