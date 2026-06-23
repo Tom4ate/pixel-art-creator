@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assets Creator - Pixel Art</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Assets Creator</h1>
+      <div class="controls">
+        <label>Width: <input type="number" id="canvas-width" value="32" min="1" max="500"></label>
+        <label>Height: <input type="number" id="canvas-height" value="32" min="1" max="500"></label>
+        <label>Pixel: <input type="number" id="pixel-size" value="20" min="4" max="100"></label>
+        <button id="apply-size">Apply</button>
+      </div>
+    </header>
+    <main>
+      <div class="canvas-area">
+        <div id="canvas-wrapper">
+          <canvas id="pixel-canvas"></canvas>
+        </div>
+        <div class="canvas-tools">
+          <input type="color" id="color-picker" value="#ff0000">
+          <button id="undo-btn">Undo</button>
+          <button id="clear-btn">Clear</button>
+        </div>
+      </div>
+      <div class="chat-area">
+        <div id="chat-messages"></div>
+        <div class="chat-input">
+          <input type="text" id="chat-input" placeholder="Ex: desenhe um pixel vermelho no centro...">
+          <button id="chat-send">Send</button>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
