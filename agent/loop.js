@@ -18,26 +18,20 @@ function buildSystemPrompt(width, height) {
   return {
     role: 'system',
     content: `You are a pixel art assistant. The canvas is ${width}x${height} pixels.
-You have tools to draw pixels, rectangles, lines, flood fill, undo, and clear.
-You can call get_canvas_preview at any time to see the current canvas.
-Always respond in the same language as the user.
-When the user asks you to draw something, plan your steps and use the tools.
-After drawing, describe what you did. Keep responses concise.`,
+
+RULES:
+1. Use drawing tools (draw_pixel, draw_rect, draw_line, fill_area, set_background, clear_canvas, undo) to create pixel art.
+2. Call get_canvas_preview after drawing to examine the current result.
+3. If the result is not satisfactory, make corrections by calling more drawing tools.
+4. Keep iterating: draw → preview → correct → preview → repeat until it looks right.
+5. Call finish(summary) ONLY when you are fully satisfied with the result.
+6. If the user just asks a question, answer it and call finish() when done.
+7. Always respond in the same language as the user.`,
   };
 }
 
 function buildUserMessage(text) {
   return { role: 'user', content: text };
-}
-
-function buildVisionUserMessage(text, dataUrl) {
-  return {
-    role: 'user',
-    content: [
-      { type: 'text', text },
-      { type: 'image_url', image_url: { url: dataUrl, detail: 'auto' } },
-    ],
-  };
 }
 
 export async function agentLoop(userText, canvasState, io) {
@@ -58,9 +52,12 @@ export async function agentLoop(userText, canvasState, io) {
   messages.push(buildUserMessage(userText));
 
   let toolCallCount = 0;
-  const maxToolCalls = 30;
+  const maxToolCalls = 100;
+  let hasCalledTool = false;
+  let textOnlyCount = 0;
+  const maxTextOnly = 3;
 
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 50; i++) {
     let result;
     try {
       result = await rateLimiter.withRetry(() =>
@@ -78,8 +75,18 @@ export async function agentLoop(userText, canvasState, io) {
       : JSON.stringify(result.content);
 
     if (!result.tool_calls || result.tool_calls.length === 0) {
+      if (hasCalledTool) {
+        textOnlyCount++;
+        messages.push({ role: 'assistant', content });
+        if (textOnlyCount >= maxTextOnly) {
+          return content;
+        }
+        continue;
+      }
       return content;
     }
+
+    textOnlyCount = 0;
 
     for (const tc of result.tool_calls) {
       if (toolCallCount >= maxToolCalls) {
@@ -113,8 +120,13 @@ export async function agentLoop(userText, canvasState, io) {
 
       const output = toolFn.execute(parsed);
 
-      messages.push({ role: 'assistant', content: '', tool_calls: [tc] });
+      if (tc.name === 'finish') {
+        if (io) io.emit('canvas-update', canvasState.toJSON());
+        return output.summary;
+      }
 
+      hasCalledTool = true;
+      messages.push({ role: 'assistant', content: '', tool_calls: [tc] });
       messages.push({
         role: 'tool',
         tool_call_id: tc.id,
@@ -127,5 +139,6 @@ export async function agentLoop(userText, canvasState, io) {
     }
   }
 
-  return 'Hmm, não consegui terminar a tempo. Tente ser mais específico.';
+  const lastMsg = messages.filter(m => m.role === 'assistant' && m.content).pop();
+  return lastMsg?.content || 'Hmm, não consegui terminar a tempo. Tente ser mais específico.';
 }

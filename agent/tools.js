@@ -93,24 +93,23 @@ export function createTools(canvasState) {
     },
     {
       name: 'get_canvas_preview',
-      description: 'Get a preview of the current canvas as a data URL image so you can see what was drawn',
+      description: 'Get a text representation of the current canvas to see what has been drawn, where each color is a letter',
       schema: z.object({}),
       execute: () => {
         const dataUrl = canvasState.toDataURL();
         const stats = { width: canvasState.width, height: canvasState.height };
-        return { ...stats, dataUrl };
+        return { ...stats, dataUrl, gridText: canvasState.toTextGrid() };
       },
+    },
+    {
+      name: 'finish',
+      description: 'Call this ONLY when you are fully satisfied with the pixel art. Provide a summary of what was drawn. Do NOT call this until you have examined the result and confirmed it matches the user\'s request.',
+      schema: z.object({
+        summary: z.string().describe('Summary of what was drawn'),
+      }),
+      execute: ({ summary }) => ({ done: true, summary }),
     },
   ];
 }
 
-export function toolsToBind(tools) {
-  return tools.map(t => ({
-    type: 'function',
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: t.schema,
-    },
-  }));
-}
+

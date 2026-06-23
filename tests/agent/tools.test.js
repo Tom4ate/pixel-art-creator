@@ -12,8 +12,8 @@ describe('Agent Tools', () => {
     tools = createTools(canvas);
   });
 
-  it('should create 8 tools', () => {
-    assert.equal(tools.length, 8);
+  it('should create 9 tools', () => {
+    assert.equal(tools.length, 9);
   });
 
   it('each tool should have name, description, schema, execute', () => {
@@ -119,11 +119,34 @@ describe('Agent Tools', () => {
   describe('get_canvas_preview', () => {
     const tool = () => tools.find(t => t.name === 'get_canvas_preview');
 
-    it('should return dataUrl and dimensions', () => {
+    it('should return dataUrl, dimensions, and gridText', () => {
       const r = tool().execute({});
       assert(r.dataUrl.startsWith('data:image/bmp;base64,'));
       assert.equal(r.width, 32);
       assert.equal(r.height, 32);
+      assert(typeof r.gridText === 'string');
+      assert(r.gridText.includes('(empty canvas)'));
+    });
+
+    it('should show pixels in gridText when canvas has content', () => {
+      canvas.drawPixel(0, 0, '#FF0000');
+      const r = tool().execute({});
+      assert(r.gridText.includes('A'));
+      assert(r.gridText.includes('#FF0000'));
+    });
+  });
+
+  describe('finish', () => {
+    const tool = () => tools.find(t => t.name === 'finish');
+
+    it('should accept a summary and return done', () => {
+      const r = tool().execute({ summary: 'desenhei um quadrado azul' });
+      assert.equal(r.done, true);
+      assert.equal(r.summary, 'desenhei um quadrado azul');
+    });
+
+    it('should reject non-string summary', () => {
+      assert.throws(() => tool().schema.parse({ summary: 42 }));
     });
   });
 });

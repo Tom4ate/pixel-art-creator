@@ -46,10 +46,12 @@ Acesse `http://localhost:3000`.
 1. Configure o tamanho do canvas e o pixel size nos controles do topo
 2. Desenhe manualmente clicando/arrastando no canvas, ou
 3. Digite um comando em linguagem natural no chat (ex: *"desenhe uma maçã 8x8 no centro"*)
-4. O agente LangChain recebe a mensagem + uma imagem BMP do canvas atual
+4. O agente LangChain recebe a mensagem e inicia o loop iterativo
 5. O modelo decide quais tools chamar (`draw_pixel`, `draw_rect`, `draw_line`, etc.)
 6. Cada ação é executada e transmitida em tempo real via Socket.io
-7. O loop continua até o modelo responder textualmente
+7. O modelo pode chamar `get_canvas_preview` para "ver" o resultado atual
+8. Se não estiver satisfeito, continua desenhando: **draw → preview → correct → preview → repeat**
+9. Quando estiver satisfeito, chama `finish(summary)` e o loop encerra
 
 ## Ferramentas do agente
 
@@ -63,10 +65,11 @@ Acesse `http://localhost:3000`.
 | `clear_canvas()` | Limpa tudo |
 | `undo()` | Desfaz última ação |
 | `get_canvas_preview()` | Retorna o canvas como imagem (o modelo "vê") |
+| `finish(summary)` | Finaliza o loop quando o modelo está satisfeito |
 
 ## Segurança (rate limiting)
 
-- Token bucket: 25 requisições/minuto (folga abaixo do limite real de 30)
+- Token bucket: 25 requisições/minuto
 - Fila: até 10 requisições em espera
 - Backoff exponencial em caso de erro 429 (1s, 2s, 4s... até 30s)
 - Limite diário: 6000 requisições
@@ -81,8 +84,8 @@ assets-creator/
 ├── canvas/
 │   └── state.js            # Grid 2D, undo stack, encoder BMP
 ├── agent/
-│   ├── tools.js            # Definição das 8 ferramentas (Zod)
-│   ├── loop.js             # Loop do agente custom
+│   ├── tools.js            # Definição das 9 ferramentas (Zod)
+│   ├── loop.js             # Loop do agente custom (draw → preview → finish)
 │   └── rateLimiter.js      # Token bucket + backoff
 └── public/
     ├── index.html           # UI: canvas + chat + controles

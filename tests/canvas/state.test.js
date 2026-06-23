@@ -212,6 +212,73 @@ describe('CanvasState', () => {
     });
   });
 
+  describe('toTextGrid', () => {
+    it('should show "(empty canvas)" for blank canvas', () => {
+      const text = canvas.toTextGrid();
+      assert(text.includes('(empty canvas)'));
+    });
+
+    it('should show color legend when pixels are drawn', () => {
+      canvas.drawPixel(0, 0, '#FF0000');
+      const text = canvas.toTextGrid();
+      assert(text.includes('[Colors]'));
+      assert(text.includes('A = #FF0000'));
+    });
+
+    it('should map each unique color to a letter', () => {
+      canvas.drawPixel(0, 0, '#FF0000');
+      canvas.drawPixel(1, 0, '#00FF00');
+      const text = canvas.toTextGrid();
+      assert(text.includes('A = #FF0000'));
+      assert(text.includes('B = #00FF00'));
+    });
+
+    it('should show pixels as letters in the grid', () => {
+      canvas.drawPixel(5, 10, '#FF0000');
+      const text = canvas.toTextGrid();
+      assert(text.includes('Row  10:'));
+      assert(text.includes('A'));
+    });
+
+    it('should skip completely empty rows', () => {
+      canvas.drawPixel(0, 0, '#FF0000');
+      const text = canvas.toTextGrid();
+      assert(text.includes('Row   0:'));
+      assert(!text.includes('Row   1:'));
+    });
+
+    it('should handle multiple rows with pixels', () => {
+      canvas.drawPixel(0, 0, '#FF0000');
+      canvas.drawPixel(0, 31, '#FF0000');
+      const text = canvas.toTextGrid();
+      assert(text.includes('Row   0:'));
+      assert(text.includes('Row  31:'));
+    });
+
+    it('should truncate at 40 rows', () => {
+      const big = new CanvasState(32, 100);
+      big.drawRect(0, 0, 5, 100, '#FF0000');
+      const text = big.toTextGrid();
+      assert(text.includes('... (60 more empty rows omitted)'));
+    });
+
+    it('should truncate at 80 columns', () => {
+      const wide = new CanvasState(200, 5);
+      wide.drawRect(0, 0, 200, 5, '#FF0000');
+      const text = wide.toTextGrid();
+      assert(text.includes('...'));
+      assert(text.length < 15000);
+    });
+
+    it('should return different output for different canvases', () => {
+      const c1 = new CanvasState(8, 8);
+      c1.drawPixel(0, 0, '#FF0000');
+      const c2 = new CanvasState(8, 8);
+      c2.drawPixel(1, 1, '#00FF00');
+      assert.notEqual(c1.toTextGrid(), c2.toTextGrid());
+    });
+  });
+
   describe('snapshot and restore', () => {
     it('should snapshot and restore canvas state', () => {
       canvas.drawPixel(0, 0, '#FF0000');

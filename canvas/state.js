@@ -97,6 +97,65 @@ export class CanvasState {
     return { width: this.width, height: this.height, grid: this.grid };
   }
 
+  toTextGrid() {
+    const colorMap = new Map();
+    const usedChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let nextChar = 0;
+
+    const charFor = (color) => {
+      if (!color) return null;
+      if (colorMap.has(color)) return colorMap.get(color);
+      if (nextChar >= usedChars.length) return '?';
+      const c = usedChars[nextChar++];
+      colorMap.set(color, c);
+      return c;
+    };
+
+    const maxRows = 40;
+    const maxCols = 80;
+    const h = Math.min(this.height, maxRows);
+    const w = Math.min(this.width, maxCols);
+    const gridRows = [];
+
+    for (let y = 0; y < h; y++) {
+      let row = '';
+      let hasPixel = false;
+      for (let x = 0; x < w; x++) {
+        const ch = charFor(this.grid[y][x]);
+        row += ch ?? '.';
+        if (ch !== null) hasPixel = true;
+      }
+      if (this.width > maxCols) row += '...';
+      if (hasPixel) gridRows.push({ y, row });
+    }
+
+    const lines = [];
+
+    if (colorMap.size > 0) {
+      lines.push('[Colors]');
+      for (const [color, ch] of colorMap) {
+        lines.push(`  ${ch} = ${color}`);
+      }
+      lines.push('');
+    }
+
+    lines.push(`[Grid ${this.width}x${this.height}]`);
+
+    if (gridRows.length === 0) {
+      lines.push('  (empty canvas)');
+    } else {
+      for (const { y, row } of gridRows) {
+        lines.push(`Row ${String(y).padStart(3, ' ')}: ${row}`);
+      }
+    }
+
+    if (this.height > maxRows) {
+      lines.push(`... (${this.height - maxRows} more empty rows omitted)`);
+    }
+
+    return lines.join('\n');
+  }
+
   toBMP() {
     const w = this.width, h = this.height;
     const rowSize = Math.ceil((w * 3) / 4) * 4;
