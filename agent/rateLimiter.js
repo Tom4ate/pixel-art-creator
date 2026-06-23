@@ -26,7 +26,9 @@ export class RateLimiter {
     }
   }
 
-  async acquire() {
+  async acquire(signal) {
+    if (signal?.aborted) throw new Error('Aborted');
+
     this.refill();
     if (this.dailyRequests >= this.maxDaily) {
       throw new Error('Daily request limit reached. Try again tomorrow.');
@@ -39,39 +41,77 @@ export class RateLimiter {
       if (this.queue.length >= this.maxQueueSize) {
         return reject(new Error('Too many queued requests. Try again later.'));
       }
-      this.queue.push({ resolve, reject });
-      if (!this.processing) this.processQueue();
+
+      const onAbort = () => {
+        const idx = this.queue.indexOf(entry);
+        if (idx !== -1) this.queue.splice(idx, 1);
+        reject(new Error('Aborted'));
+      };
+
+      if (signal) {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      const entry = { resolve, reject };
+      entry._cleanup = () => {
+        if (signal) signal.removeEventListener('abort', onAbort);
+      };
+      this.queue.push(entry);
+      if (!this.processing) this.processQueue(signal);
     });
   }
 
-  async processQueue() {
+  async processQueue(signal) {
     this.processing = true;
     while (this.queue.length > 0) {
-      await new Promise(r => setTimeout(r, this.refillInterval));
+      if (signal?.aborted) {
+        this.queue = [];
+        break;
+      }
+      await this.waitWithSignal(this.refillInterval, signal);
       this.refill();
       if (this.tokens <= 0) continue;
       this.tokens--;
       const item = this.queue.shift();
+      if (item._cleanup) item._cleanup();
       item.resolve(true);
     }
     this.processing = false;
+  }
+
+  waitWithSignal(ms, signal) {
+    return new Promise((resolve) => {
+      if (signal?.aborted) return resolve();
+      const timer = setTimeout(resolve, ms);
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          clearTimeout(timer);
+          resolve();
+        }, { once: true });
+      }
+    });
   }
 
   recordSuccess() {
     this.dailyRequests++;
   }
 
-  async withRetry(fn, maxRetries = 3) {
+  async withRetry(fn, maxRetries = 3, signal, onRetry) {
+    if (signal?.aborted) throw new Error('Aborted');
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        await this.acquire();
+        await this.acquire(signal);
+        if (signal?.aborted) throw new Error('Aborted');
         const result = await fn();
         this.recordSuccess();
         return result;
       } catch (err) {
+        if (err.message === 'Aborted') throw err;
         if (err.status === 429 && attempt < maxRetries) {
           const wait = Math.min(1000 * Math.pow(2, attempt), 30000);
-          await new Promise(r => setTimeout(r, wait));
+          if (onRetry) onRetry(attempt + 1, wait);
+          await this.waitWithSignal(wait, signal);
           continue;
         }
         throw err;

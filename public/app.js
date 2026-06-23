@@ -5,6 +5,7 @@ const wrapper = document.getElementById('canvas-wrapper');
 const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 const chatSend = document.getElementById('chat-send');
+const stopBtn = document.getElementById('stop-btn');
 const colorPicker = document.getElementById('color-picker');
 const undoBtn = document.getElementById('undo-btn');
 const clearBtn = document.getElementById('clear-btn');
@@ -12,11 +13,16 @@ const applySizeBtn = document.getElementById('apply-size');
 const widthInput = document.getElementById('canvas-width');
 const heightInput = document.getElementById('canvas-height');
 const pixelSizeInput = document.getElementById('pixel-size');
+const modelInput = document.getElementById('model-input');
+const logContent = document.getElementById('log-content');
+const logToggle = document.getElementById('log-toggle');
 
 let ctx = canvasEl.getContext('2d');
 let currentGrid = { width: 32, height: 32, grid: [] };
 let pixelSize = 20;
 let painting = false;
+let logExpanded = false;
+let logMessages = [];
 
 function renderCanvas(data) {
   currentGrid = data;
@@ -88,14 +94,33 @@ function addMessage(text, type) {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+function addLogEntry(entry) {
+  const div = document.createElement('div');
+  div.className = `log-entry log-${entry.type}`;
+
+  const time = new Date(entry.timestamp);
+  const ts = time.toLocaleTimeString('pt-BR', { hour12: false });
+
+  div.textContent = `[${ts}] ${entry.message}`;
+  logContent.appendChild(div);
+  logContent.scrollTop = logContent.scrollHeight;
+}
+
 function sendChat() {
   const text = chatInput.value.trim();
   if (!text || chatSend.disabled) return;
   chatInput.value = '';
   addMessage(text, 'user');
   chatSend.disabled = true;
-  socket.emit('chat-message', text);
+  stopBtn.style.display = '';
+  socket.emit('chat-message', { text, model: modelInput.value.trim() || undefined });
 }
+
+stopBtn.addEventListener('click', () => {
+  socket.emit('stop-execution');
+  stopBtn.style.display = 'none';
+  addMessage('Parando execução...', 'log');
+});
 
 chatSend.addEventListener('click', sendChat);
 chatInput.addEventListener('keydown', (e) => {
@@ -119,10 +144,25 @@ pixelSizeInput.addEventListener('change', () => {
   renderCanvas(currentGrid);
 });
 
+modelInput.addEventListener('change', () => {
+  addLogEntry({
+    type: 'info',
+    message: `Modelo alterado para: ${modelInput.value.trim() || '(usando .env)'}`,
+    timestamp: Date.now(),
+  });
+});
+
+logToggle.addEventListener('click', () => {
+  logExpanded = !logExpanded;
+  logContent.style.display = logExpanded ? 'block' : 'none';
+  logToggle.textContent = logExpanded ? '▲' : '▼';
+});
+
 socket.on('canvas-update', renderCanvas);
 
 socket.on('agent-thinking', (thinking) => {
   chatSend.disabled = thinking;
+  stopBtn.style.display = thinking ? '' : 'none';
   if (thinking) {
     addMessage('...', 'thinking');
   } else {
@@ -134,4 +174,22 @@ socket.on('agent-thinking', (thinking) => {
 socket.on('agent-response', (text) => {
   addMessage(text, 'agent');
   chatSend.disabled = false;
+  stopBtn.style.display = 'none';
+});
+
+socket.on('agent-log', (entry) => {
+  logMessages.push(entry);
+  addLogEntry(entry);
+
+  const icons = {
+    model_call: '🤖',
+    tool_call: '🔧',
+    tool_result: '✅',
+    rate_limit: '⏳',
+    error: '❌',
+    info: 'ℹ️',
+  };
+
+  const icon = icons[entry.type] || '';
+  addMessage(`${icon} ${entry.message}`, 'log');
 });

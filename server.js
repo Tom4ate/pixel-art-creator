@@ -15,6 +15,7 @@ const io = new Server(httpServer);
 app.use(express.static(join(__dirname, 'public')));
 
 const canvasState = new CanvasState(32, 32);
+const activeControllers = new Map();
 
 io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`);
@@ -44,19 +45,40 @@ io.on('connection', (socket) => {
     io.emit('canvas-update', canvasState.toJSON());
   });
 
-  socket.on('chat-message', async (text) => {
+  socket.on('chat-message', async (data) => {
+    const text = typeof data === 'string' ? data : data?.text;
+    const model = typeof data === 'string' ? undefined : data?.model;
     if (!text || typeof text !== 'string') return;
+
+    const controller = new AbortController();
+    activeControllers.set(socket.id, controller);
+
     io.emit('agent-thinking', true);
+
     try {
-      const response = await agentLoop(text, canvasState, io);
+      const response = await agentLoop(text, canvasState, io, model, controller.signal);
       socket.emit('agent-response', response);
     } catch (err) {
+      if (err.message === 'Aborted' || controller.signal.aborted) return;
       socket.emit('agent-response', `Erro: ${err.message}`);
+    } finally {
+      activeControllers.delete(socket.id);
+      io.emit('agent-thinking', false);
     }
-    io.emit('agent-thinking', false);
+  });
+
+  socket.on('stop-execution', () => {
+    const controller = activeControllers.get(socket.id);
+    if (controller) {
+      controller.abort();
+      activeControllers.delete(socket.id);
+    }
   });
 
   socket.on('disconnect', () => {
+    const controller = activeControllers.get(socket.id);
+    if (controller) controller.abort();
+    activeControllers.delete(socket.id);
     console.log(`Client disconnected: ${socket.id}`);
   });
 });

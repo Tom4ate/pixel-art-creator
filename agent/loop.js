@@ -5,10 +5,14 @@ import 'dotenv/config';
 
 const rateLimiter = new RateLimiter();
 
-function buildModel() {
+function emitLog(io, type, message) {
+  if (io) io.emit('agent-log', { type, message, timestamp: Date.now() });
+}
+
+function buildModel(modelName) {
   return new ChatGroq({
     apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+    model: modelName || process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
     temperature: 0.7,
     maxTokens: 2048,
   });
@@ -34,8 +38,22 @@ function buildUserMessage(text) {
   return { role: 'user', content: text };
 }
 
-export async function agentLoop(userText, canvasState, io) {
-  const model = buildModel();
+function formatArgs(args) {
+  try {
+    const entries = Object.entries(args);
+    if (entries.length === 0) return '';
+    return entries
+      .map(([k, v]) => `${k}=${v}`)
+      .join(', ');
+  } catch {
+    return '';
+  }
+}
+
+export async function agentLoop(userText, canvasState, io, modelName, signal) {
+  if (signal?.aborted) return 'Execução cancelada pelo usuário.';
+
+  const model = buildModel(modelName);
   const tools = createTools(canvasState);
   const toolMap = Object.fromEntries(tools.map(t => [t.name, t]));
 
@@ -58,15 +76,24 @@ export async function agentLoop(userText, canvasState, io) {
   const maxTextOnly = 3;
 
   for (let i = 0; i < 50; i++) {
+    if (signal?.aborted) return 'Execução cancelada pelo usuário.';
+
+    emitLog(io, 'model_call', `Iteração ${i + 1}/50 — chamando modelo...`);
+
     let result;
     try {
-      result = await rateLimiter.withRetry(() =>
-        model.invoke(messages, { tools: toolDefs })
+      result = await rateLimiter.withRetry(
+        () => model.invoke(messages, { tools: toolDefs }),
+        3,
+        signal,
+        (attempt, wait) => emitLog(io, 'rate_limit', `Rate limit: tentativa ${attempt}, aguardando ${wait}ms...`)
       );
     } catch (err) {
-      if (err.message?.includes('tool_use')) {
+      if (err.message === 'Aborted') return 'Execução cancelada pelo usuário.';
+      if (err.message?.includes('tool_use') || err.message?.includes('tool')) {
         continue;
       }
+      emitLog(io, 'error', err.message);
       return `Erro: ${err.message}`;
     }
 
@@ -89,6 +116,7 @@ export async function agentLoop(userText, canvasState, io) {
     textOnlyCount = 0;
 
     for (const tc of result.tool_calls) {
+      if (signal?.aborted) return 'Execução cancelada pelo usuário.';
       if (toolCallCount >= maxToolCalls) {
         return 'Número máximo de ações atingido.';
       }
@@ -118,7 +146,12 @@ export async function agentLoop(userText, canvasState, io) {
         continue;
       }
 
+      const argsStr = formatArgs(parsed);
+      emitLog(io, 'tool_call', `${tc.name}${argsStr ? `(${argsStr})` : ''}`);
+
       const output = toolFn.execute(parsed);
+
+      emitLog(io, 'tool_result', `${tc.name}: ${JSON.stringify(output)}`);
 
       if (tc.name === 'finish') {
         if (io) io.emit('canvas-update', canvasState.toJSON());
@@ -133,7 +166,7 @@ export async function agentLoop(userText, canvasState, io) {
         content: JSON.stringify(output),
       });
 
-      if (io && tc.name !== 'get_canvas_preview') {
+      if (io && tc.name !== 'get_canvas_preview' && tc.name !== 'get_canvas_image') {
         io.emit('canvas-update', canvasState.toJSON());
       }
     }

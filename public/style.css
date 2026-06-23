@@ -176,15 +176,30 @@ main {
   font-size: 13px;
 }
 
+.msg.log {
+  background: #111827;
+  color: #94a3b8;
+  align-self: flex-start;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  line-height: 1.5;
+  max-width: 100%;
+  opacity: 0.9;
+}
+
 .chat-input {
   display: flex;
   padding: 10px;
   gap: 8px;
   border-top: 1px solid #0f3460;
+  flex-wrap: wrap;
 }
 
 .chat-input input {
   flex: 1;
+  min-width: 120px;
   padding: 8px 12px;
   border: 1px solid #0f3460;
   border-radius: 4px;
@@ -204,11 +219,87 @@ main {
   color: #fff;
   cursor: pointer;
   font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .chat-input button:hover { background: #d63851; }
 
+#stop-btn {
+  background: #dc2626;
+}
+
+#stop-btn:hover { background: #b91c1c; }
+
+.controls input[type="text"] {
+  width: 180px;
+  padding: 4px 6px;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  background: #1a1a2e;
+  color: #eee;
+  font-size: 12px;
+  outline: none;
+}
+
+.controls input[type="text"]:focus { border-color: #e94560; }
+
+.log-panel {
+  border-top: 1px solid #0f3460;
+  background: #0d0d1a;
+  max-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background: #111827;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+}
+
+.log-toggle-btn {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+.log-toggle-btn:hover { color: #aaa; }
+
+#log-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 12px;
+  display: none;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.log-entry {
+  color: #6b7280;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-entry.log-model_call { color: #60a5fa; }
+.log-entry.log-tool_call { color: #fbbf24; }
+.log-entry.log-tool_result { color: #34d399; }
+.log-entry.log-rate_limit { color: #f97316; }
+.log-entry.log-error { color: #ef4444; }
+.log-entry.log-info { color: #6b7280; }
+
 @media (max-width: 768px) {
   main { flex-direction: column; }
   .chat-area { width: 100%; min-width: 0; border-left: none; border-top: 1px solid #0f3460; height: 40vh; }
+  .controls input[type="text"] { width: 140px; }
 }

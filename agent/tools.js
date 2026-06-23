@@ -93,12 +93,22 @@ export function createTools(canvasState) {
     },
     {
       name: 'get_canvas_preview',
-      description: 'Get a text representation of the current canvas to see what has been drawn, where each color is a letter',
+      description: 'Get a text representation and stats of the current canvas. Use this frequently to see what has been drawn. Each unique color is represented by a letter in the grid.',
       schema: z.object({}),
       execute: () => {
-        const dataUrl = canvasState.toDataURL();
-        const stats = { width: canvasState.width, height: canvasState.height };
-        return { ...stats, dataUrl, gridText: canvasState.toTextGrid() };
+        return {
+          width: canvasState.width,
+          height: canvasState.height,
+          gridText: canvasState.toTextGrid(),
+        };
+      },
+    },
+    {
+      name: 'get_canvas_image',
+      description: 'Get the canvas as a base64 data URL (BMP format). Only use this when you need the actual pixel data, e.g. for analysis or verification. Prefer get_canvas_preview for quick checks.',
+      schema: z.object({}),
+      execute: () => {
+        return { dataUrl: canvasState.toDataURL() };
       },
     },
     {
