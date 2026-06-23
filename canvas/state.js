@@ -5,6 +5,15 @@ export class CanvasState {
     this.grid = Array.from({ length: height }, () => Array(width).fill(null));
     this.undoStack = [];
     this.maxUndo = 50;
+    this.palette = null;
+  }
+
+  setPalette(colors) {
+    this.palette = [...colors];
+  }
+
+  clearPalette() {
+    this.palette = null;
   }
 
   resize(width, height) {
@@ -84,6 +93,7 @@ export class CanvasState {
   clear() {
     this.pushUndo();
     this.grid = Array.from({ length: this.height }, () => Array(this.width).fill(null));
+    this.palette = null;
     return true;
   }
 
@@ -94,7 +104,7 @@ export class CanvasState {
   }
 
   toJSON() {
-    return { width: this.width, height: this.height, grid: this.grid };
+    return { width: this.width, height: this.height, grid: this.grid, palette: this.palette };
   }
 
   toTextGrid() {

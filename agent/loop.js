@@ -18,7 +18,14 @@ function buildModel(modelName) {
   });
 }
 
-function buildSystemPrompt(width, height) {
+function buildSystemPrompt(width, height, palette) {
+  let paletteRule = '';
+  if (palette) {
+    paletteRule = `\nPALETTE:\nThe current color palette is: ${JSON.stringify(palette)}.\nUse ONLY these colors for drawing. Do NOT use colors outside this palette.`;
+  } else {
+    paletteRule = `\nPALETTE:\nNo color palette is defined yet. Before drawing, first define a palette using set_palette to establish the art style, then use only those colors.`;
+  }
+
   return {
     role: 'system',
     content: `You are a pixel art assistant. The canvas is ${width}x${height} pixels.
@@ -30,7 +37,7 @@ RULES:
 4. Keep iterating: draw → preview → correct → preview → repeat until it looks right.
 5. Call finish(summary) ONLY when you are fully satisfied with the result.
 6. If the user just asks a question, answer it and call finish() when done.
-7. Always respond in the same language as the user.`,
+7. Always respond in the same language as the user.${paletteRule}`,
   };
 }
 
@@ -50,7 +57,7 @@ function formatArgs(args) {
   }
 }
 
-export async function agentLoop(userText, canvasState, io, modelName, signal) {
+export async function agentLoop(userText, canvasState, io, modelName, signal, requestConfirmation, socketId) {
   if (signal?.aborted) return 'Execução cancelada pelo usuário.';
 
   const model = buildModel(modelName);
@@ -66,7 +73,7 @@ export async function agentLoop(userText, canvasState, io, modelName, signal) {
     },
   }));
 
-  const messages = [buildSystemPrompt(canvasState.width, canvasState.height)];
+  const messages = [buildSystemPrompt(canvasState.width, canvasState.height, canvasState.palette)];
   messages.push(buildUserMessage(userText));
 
   let toolCallCount = 0;
@@ -149,9 +156,30 @@ export async function agentLoop(userText, canvasState, io, modelName, signal) {
       const argsStr = formatArgs(parsed);
       emitLog(io, 'tool_call', `${tc.name}${argsStr ? `(${argsStr})` : ''}`);
 
+      if (tc.name === 'clear_canvas' && requestConfirmation) {
+        emitLog(io, 'info', 'Solicitando autorização do usuário para limpar o canvas...');
+        const approved = await requestConfirmation(tc.name, parsed, socketId);
+        if (!approved) {
+          emitLog(io, 'info', 'Usuário negou a permissão para limpar o canvas.');
+          hasCalledTool = true;
+          messages.push({ role: 'assistant', content: '', tool_calls: [tc] });
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: JSON.stringify({ success: false, error: 'Usuário não autorizou limpar o canvas. Peça permissão novamente se necessário.' }),
+          });
+          continue;
+        }
+        emitLog(io, 'info', 'Usuário autorizou limpar o canvas.');
+      }
+
       const output = toolFn.execute(parsed);
 
       emitLog(io, 'tool_result', `${tc.name}: ${JSON.stringify(output)}`);
+
+      if (io && (tc.name === 'set_palette' || tc.name === 'clear_palette' || tc.name === 'clear_canvas')) {
+        io.emit('palette-update', canvasState.palette ? [...canvasState.palette] : null);
+      }
 
       if (tc.name === 'finish') {
         if (io) io.emit('canvas-update', canvasState.toJSON());

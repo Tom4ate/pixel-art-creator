@@ -16,13 +16,23 @@ const pixelSizeInput = document.getElementById('pixel-size');
 const modelInput = document.getElementById('model-input');
 const logContent = document.getElementById('log-content');
 const logToggle = document.getElementById('log-toggle');
+const paletteSwatches = document.getElementById('palette-swatches');
+const confirmOverlay = document.getElementById('confirm-overlay');
+const confirmMessage = document.getElementById('confirm-message');
+const confirmYes = document.getElementById('confirm-yes');
+const confirmNo = document.getElementById('confirm-no');
+const historyBarContent = document.getElementById('history-bar-content');
+const historyBarToggle = document.getElementById('history-bar-toggle');
 
 let ctx = canvasEl.getContext('2d');
 let currentGrid = { width: 32, height: 32, grid: [] };
-let pixelSize = 20;
+let pixelSize = 10;
 let painting = false;
 let logExpanded = false;
 let logMessages = [];
+let pendingRequestId = null;
+let versions = [];
+const maxVersions = 50;
 
 function renderCanvas(data) {
   currentGrid = data;
@@ -106,6 +116,107 @@ function addLogEntry(entry) {
   logContent.scrollTop = logContent.scrollHeight;
 }
 
+function renderPalette(colors) {
+  paletteSwatches.innerHTML = '';
+  if (!colors || colors.length === 0) {
+    const empty = document.createElement('span');
+    empty.className = 'palette-empty';
+    empty.textContent = '—';
+    paletteSwatches.appendChild(empty);
+    return;
+  }
+  for (const color of colors) {
+    const swatch = document.createElement('button');
+    swatch.className = 'palette-swatch';
+    swatch.style.background = color;
+    swatch.title = color;
+    swatch.addEventListener('click', () => {
+      colorPicker.value = color;
+    });
+    paletteSwatches.appendChild(swatch);
+  }
+}
+
+function renderBarThumbnail(ver) {
+  const maxSize = 80;
+  const scale = Math.min(maxSize / ver.width, maxSize / ver.height, 4);
+  const tw = Math.round(ver.width * scale);
+  const th = Math.round(ver.height * scale);
+  const c = document.createElement('canvas');
+  c.width = tw;
+  c.height = th;
+  c.className = 'history-bar-thumb';
+  c.title = `#${versions.indexOf(ver) + 1} - ${new Date(ver.timestamp).toLocaleTimeString('pt-BR', { hour12: false })}`;
+  const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
+  for (let y = 0; y < ver.height; y++) {
+    for (let x = 0; x < ver.width; x++) {
+      const color = ver.grid[y]?.[x];
+      cx.fillStyle = color || '#1a1a2e';
+      cx.fillRect(Math.round(x * scale), Math.round(y * scale), Math.ceil(scale), Math.ceil(scale));
+    }
+  }
+  const wrap = document.createElement('div');
+  wrap.className = 'history-bar-item';
+  c.addEventListener('click', () => {
+    socket.emit('restore-version', { grid: ver.grid });
+  });
+  const badge = document.createElement('span');
+  badge.className = 'history-bar-badge';
+  badge.textContent = `#${versions.indexOf(ver) + 1}`;
+  wrap.appendChild(c);
+  wrap.appendChild(badge);
+  return wrap;
+}
+
+function renderHistoryBar() {
+  historyBarContent.innerHTML = '';
+  if (versions.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'history-bar-empty';
+    empty.textContent = 'Nenhuma versão';
+    historyBarContent.appendChild(empty);
+    return;
+  }
+  for (let i = versions.length - 1; i >= 0; i--) {
+    historyBarContent.appendChild(renderBarThumbnail(versions[i]));
+  }
+  historyBarContent.scrollLeft = 0;
+}
+
+function saveVersion(data) {
+  versions.push({
+    timestamp: Date.now(),
+    width: data.width,
+    height: data.height,
+    grid: data.grid.map(row => [...row]),
+  });
+  if (versions.length > maxVersions) versions.shift();
+  renderHistoryBar();
+}
+
+confirmYes.addEventListener('click', () => {
+  if (pendingRequestId) {
+    socket.emit('confirmation-response', { requestId: pendingRequestId, approved: true });
+    pendingRequestId = null;
+    confirmOverlay.style.display = 'none';
+  }
+});
+
+confirmNo.addEventListener('click', () => {
+  if (pendingRequestId) {
+    socket.emit('confirmation-response', { requestId: pendingRequestId, approved: false });
+    pendingRequestId = null;
+    confirmOverlay.style.display = 'none';
+  }
+});
+
+historyBarToggle.addEventListener('click', () => {
+  const isHidden = historyBarContent.style.display === 'none';
+  historyBarContent.style.display = isHidden ? 'flex' : 'none';
+  historyBarToggle.textContent = isHidden ? '▲' : '▼';
+});
+
 function sendChat() {
   const text = chatInput.value.trim();
   if (!text || chatSend.disabled) return;
@@ -158,7 +269,10 @@ logToggle.addEventListener('click', () => {
   logToggle.textContent = logExpanded ? '▲' : '▼';
 });
 
-socket.on('canvas-update', renderCanvas);
+socket.on('canvas-update', (data) => {
+  renderCanvas(data);
+  saveVersion(data);
+});
 
 socket.on('agent-thinking', (thinking) => {
   chatSend.disabled = thinking;
@@ -192,4 +306,14 @@ socket.on('agent-log', (entry) => {
 
   const icon = icons[entry.type] || '';
   addMessage(`${icon} ${entry.message}`, 'log');
+});
+
+socket.on('palette-update', (colors) => {
+  renderPalette(colors);
+});
+
+socket.on('confirmation-required', ({ requestId, tool, message }) => {
+  pendingRequestId = requestId;
+  confirmMessage.textContent = `${message}\n\nFerramenta: ${tool}`;
+  confirmOverlay.style.display = 'flex';
 });

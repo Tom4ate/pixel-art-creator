@@ -26,9 +26,20 @@
           <canvas id="pixel-canvas"></canvas>
         </div>
         <div class="canvas-tools">
+          <div class="palette-container">
+            <span class="palette-label">Paleta:</span>
+            <div id="palette-swatches"></div>
+          </div>
           <input type="color" id="color-picker" value="#ff0000">
           <button id="undo-btn">Undo</button>
           <button id="clear-btn">Clear</button>
+        </div>
+        <div class="history-bar">
+          <div class="history-bar-header">
+            <span>Versões</span>
+            <button id="history-bar-toggle" class="log-toggle-btn">▼</button>
+          </div>
+          <div id="history-bar-content" class="history-bar-content"></div>
         </div>
       </div>
       <div class="chat-area">
@@ -47,6 +58,16 @@
         </div>
       </div>
     </main>
+  </div>
+  <div id="confirm-overlay" class="confirm-overlay" style="display:none">
+    <div class="confirm-dialog">
+      <div class="confirm-title">Confirmação necessária</div>
+      <div id="confirm-message" class="confirm-message"></div>
+      <div class="confirm-buttons">
+        <button id="confirm-yes" class="confirm-btn confirm-btn-yes">Permitir</button>
+        <button id="confirm-no" class="confirm-btn confirm-btn-no">Negar</button>
+      </div>
+    </div>
   </div>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/app.js"></script>

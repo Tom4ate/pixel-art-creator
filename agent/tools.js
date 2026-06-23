@@ -112,6 +112,37 @@ export function createTools(canvasState) {
       },
     },
     {
+      name: 'set_palette',
+      description: 'Define a color palette limiting which colors can be used for drawing. Call this before drawing to establish the art style. The colors array must have between 1 and 32 colors.',
+      schema: z.object({
+        colors: z.array(hexColor).min(1).max(32).describe('Array of hex colors defining the palette, e.g. ["#FF0000","#000000"]'),
+      }),
+      execute: ({ colors }) => {
+        canvasState.setPalette(colors);
+        return { success: true, message: `Palette defined with ${colors.length} colors`, colors };
+      },
+    },
+    {
+      name: 'get_palette',
+      description: 'Get the currently defined color palette. Returns the list of colors or indicates no palette is set.',
+      schema: z.object({}),
+      execute: () => {
+        if (canvasState.palette) {
+          return { defined: true, colors: canvasState.palette, count: canvasState.palette.length };
+        }
+        return { defined: false, message: 'No palette defined. Use set_palette to define one before drawing.' };
+      },
+    },
+    {
+      name: 'clear_palette',
+      description: 'Remove the color palette constraint, allowing any colors to be used for drawing.',
+      schema: z.object({}),
+      execute: () => {
+        canvasState.clearPalette();
+        return { success: true, message: 'Palette cleared. Any colors may now be used.' };
+      },
+    },
+    {
       name: 'finish',
       description: 'Call this ONLY when you are fully satisfied with the pixel art. Provide a summary of what was drawn. Do NOT call this until you have examined the result and confirmed it matches the user\'s request.',
       schema: z.object({

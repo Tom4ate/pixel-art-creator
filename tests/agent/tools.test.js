@@ -12,8 +12,8 @@ describe('Agent Tools', () => {
     tools = createTools(canvas);
   });
 
-  it('should create 9 tools', () => {
-    assert.equal(tools.length, 9);
+  it('should create 13 tools', () => {
+    assert.equal(tools.length, 13);
   });
 
   it('each tool should have name, description, schema, execute', () => {
@@ -119,9 +119,9 @@ describe('Agent Tools', () => {
   describe('get_canvas_preview', () => {
     const tool = () => tools.find(t => t.name === 'get_canvas_preview');
 
-    it('should return dataUrl, dimensions, and gridText', () => {
+    it('should return dimensions and gridText only', () => {
       const r = tool().execute({});
-      assert(r.dataUrl.startsWith('data:image/bmp;base64,'));
+      assert.equal(r.dataUrl, undefined);
       assert.equal(r.width, 32);
       assert.equal(r.height, 32);
       assert(typeof r.gridText === 'string');
@@ -133,6 +133,65 @@ describe('Agent Tools', () => {
       const r = tool().execute({});
       assert(r.gridText.includes('A'));
       assert(r.gridText.includes('#FF0000'));
+    });
+  });
+
+  describe('get_canvas_image', () => {
+    const tool = () => tools.find(t => t.name === 'get_canvas_image');
+
+    it('should return a base64 data URL', () => {
+      const r = tool().execute({});
+      assert(r.dataUrl.startsWith('data:image/bmp;base64,'));
+    });
+  });
+
+  describe('set_palette', () => {
+    const tool = () => tools.find(t => t.name === 'set_palette');
+
+    it('should set palette on canvas state', () => {
+      const colors = ['#FF0000', '#00FF00', '#0000FF'];
+      const r = tool().execute({ colors });
+      assert.equal(r.success, true);
+      assert.deepEqual(canvas.palette, colors);
+    });
+
+    it('should reject empty colors array', () => {
+      assert.throws(() => tool().schema.parse({ colors: [] }));
+    });
+
+    it('should reject too many colors', () => {
+      const colors = Array.from({ length: 33 }, (_, i) => `#${i.toString(16).padStart(6, '0')}`);
+      assert.throws(() => tool().schema.parse({ colors }));
+    });
+
+    it('should reject invalid hex colors', () => {
+      assert.throws(() => tool().schema.parse({ colors: ['red', 'blue'] }));
+    });
+  });
+
+  describe('get_palette', () => {
+    const tool = () => tools.find(t => t.name === 'get_palette');
+
+    it('should return defined:false when no palette', () => {
+      const r = tool().execute({});
+      assert.equal(r.defined, false);
+    });
+
+    it('should return palette colors when set', () => {
+      canvas.setPalette(['#FF0000', '#00FF00']);
+      const r = tool().execute({});
+      assert.equal(r.defined, true);
+      assert.deepEqual(r.colors, ['#FF0000', '#00FF00']);
+    });
+  });
+
+  describe('clear_palette', () => {
+    const tool = () => tools.find(t => t.name === 'clear_palette');
+
+    it('should clear palette from canvas state', () => {
+      canvas.setPalette(['#FF0000']);
+      tool().execute({});
+      assert.equal(canvas.palette, null);
     });
   });
 
