@@ -8,7 +8,7 @@ const rateLimiter = new RateLimiter();
 function buildModel() {
   return new ChatGroq({
     apiKey: process.env.GROQ_API_KEY,
-    model: 'llama-3.2-11b-vision-preview',
+    model: process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
     temperature: 0.7,
     maxTokens: 2048,
   });
@@ -17,41 +17,27 @@ function buildModel() {
 function buildSystemPrompt(width, height) {
   return {
     role: 'system',
-    content: [
-      {
-        type: 'text',
-        text: `You are a pixel art assistant. The canvas is ${width}x${height} pixels.
+    content: `You are a pixel art assistant. The canvas is ${width}x${height} pixels.
 You have tools to draw pixels, rectangles, lines, flood fill, undo, and clear.
 You can call get_canvas_preview at any time to see the current canvas.
 Always respond in the same language as the user.
 When the user asks you to draw something, plan your steps and use the tools.
 After drawing, describe what you did. Keep responses concise.`,
-      },
-    ],
   };
 }
 
-function buildUserMessage(text, canvasState) {
-  const msg = { role: 'user', content: [] };
-  msg.content.push({ type: 'text', text });
-  return msg;
+function buildUserMessage(text) {
+  return { role: 'user', content: text };
 }
 
-function groqContentFromText(text) {
-  return [{ type: 'text', text }];
-}
-
-function groqContentFromToolResult(name, result) {
-  if (name === 'get_canvas_preview' && result.dataUrl) {
-    return [
-      { type: 'text', text: `Canvas is ${result.width}x${result.height}.` },
-      {
-        type: 'image_url',
-        image_url: { url: result.dataUrl, detail: 'auto' },
-      },
-    ];
-  }
-  return [{ type: 'text', text: JSON.stringify(result) }];
+function buildVisionUserMessage(text, dataUrl) {
+  return {
+    role: 'user',
+    content: [
+      { type: 'text', text },
+      { type: 'image_url', image_url: { url: dataUrl, detail: 'auto' } },
+    ],
+  };
 }
 
 export async function agentLoop(userText, canvasState, io) {
@@ -69,7 +55,7 @@ export async function agentLoop(userText, canvasState, io) {
   }));
 
   const messages = [buildSystemPrompt(canvasState.width, canvasState.height)];
-  messages.push(buildUserMessage(userText, canvasState));
+  messages.push(buildUserMessage(userText));
 
   let toolCallCount = 0;
   const maxToolCalls = 30;
@@ -81,11 +67,18 @@ export async function agentLoop(userText, canvasState, io) {
         model.invoke(messages, { tools: toolDefs })
       );
     } catch (err) {
+      if (err.message?.includes('tool_use')) {
+        continue;
+      }
       return `Erro: ${err.message}`;
     }
 
+    const content = typeof result.content === 'string'
+      ? result.content
+      : JSON.stringify(result.content);
+
     if (!result.tool_calls || result.tool_calls.length === 0) {
-      return result.content;
+      return content;
     }
 
     for (const tc of result.tool_calls) {
@@ -120,15 +113,12 @@ export async function agentLoop(userText, canvasState, io) {
 
       const output = toolFn.execute(parsed);
 
-      const groqContent = tc.name === 'get_canvas_preview'
-        ? groqContentFromToolResult(tc.name, output)
-        : groqContentFromText(JSON.stringify(output));
-
       messages.push({ role: 'assistant', content: '', tool_calls: [tc] });
+
       messages.push({
         role: 'tool',
         tool_call_id: tc.id,
-        content: groqContent,
+        content: JSON.stringify(output),
       });
 
       if (io && tc.name !== 'get_canvas_preview') {
