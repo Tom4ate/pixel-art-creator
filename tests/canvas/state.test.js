@@ -150,7 +150,7 @@ describe('CanvasState', () => {
     });
 
     it('should limit undo stack to maxUndo', () => {
-      for (let i = 0; i < 60; i++) canvas.drawPixel(0, 0, '#FF0000');
+      for (let i = 0; i < 60; i++) canvas.drawPixel(i % 32, 0, `#${String(i).padStart(6, '0')}`);
       assert.equal(canvas.undoStack.length, canvas.maxUndo);
     });
   });

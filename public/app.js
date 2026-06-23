@@ -14,6 +14,7 @@ const widthInput = document.getElementById('canvas-width');
 const heightInput = document.getElementById('canvas-height');
 const pixelSizeInput = document.getElementById('pixel-size');
 const modelInput = document.getElementById('model-input');
+const limitGroqCheckbox = document.getElementById('limit-groq');
 const logContent = document.getElementById('log-content');
 const logToggle = document.getElementById('log-toggle');
 const paletteSwatches = document.getElementById('palette-swatches');
@@ -159,7 +160,7 @@ function renderBarThumbnail(ver) {
   const wrap = document.createElement('div');
   wrap.className = 'history-bar-item';
   c.addEventListener('click', () => {
-    socket.emit('restore-version', { grid: ver.grid });
+    socket.emit('restore-version', { grid: ver.grid, width: ver.width, height: ver.height });
   });
   const badge = document.createElement('span');
   badge.className = 'history-bar-badge';
@@ -224,7 +225,7 @@ function sendChat() {
   addMessage(text, 'user');
   chatSend.disabled = true;
   stopBtn.style.display = '';
-  socket.emit('chat-message', { text, model: modelInput.value.trim() || undefined });
+  socket.emit('chat-message', { text, model: modelInput.value.trim() || undefined, limitGroq: limitGroqCheckbox.checked });
 }
 
 stopBtn.addEventListener('click', () => {
@@ -269,9 +270,25 @@ logToggle.addEventListener('click', () => {
   logToggle.textContent = logExpanded ? '▲' : '▼';
 });
 
+let saveVersionTimeout = null;
+let pendingCanvasData = null;
+
 socket.on('canvas-update', (data) => {
+  const prevW = currentGrid.width;
+  const prevH = currentGrid.height;
   renderCanvas(data);
-  saveVersion(data);
+  if (data.width !== prevW || data.height !== prevH) {
+    widthInput.value = data.width;
+    heightInput.value = data.height;
+  }
+  pendingCanvasData = data;
+  if (!saveVersionTimeout) {
+    saveVersionTimeout = setTimeout(() => {
+      if (pendingCanvasData) saveVersion(pendingCanvasData);
+      pendingCanvasData = null;
+      saveVersionTimeout = null;
+    }, 300);
+  }
 });
 
 socket.on('agent-thinking', (thinking) => {

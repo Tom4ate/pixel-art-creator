@@ -338,7 +338,8 @@ main {
 
 .history-bar {
   width: 100%;
-  max-width: 100%;
+  max-width: 56vw;
+  min-width: 0;
   border: 1px solid #0f3460;
   border-radius: 4px;
   background: #0d0d1a;

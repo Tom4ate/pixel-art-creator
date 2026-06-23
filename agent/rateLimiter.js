@@ -1,8 +1,8 @@
 export class RateLimiter {
   constructor(options = {}) {
     this.maxTokens = options.maxTokens || 25;
-    this.refillInterval = options.refillInterval || 2500;
-    this.maxQueueSize = options.maxQueueSize || 10;
+    this.refillInterval = options.refillInterval || 2000;
+    this.maxQueueSize = options.maxQueueSize || 20;
     this.tokens = this.maxTokens;
     this.lastRefill = Date.now();
     this.queue = [];
@@ -10,6 +10,7 @@ export class RateLimiter {
     this.dailyRequests = 0;
     this.dailyReset = Date.now() + 86400000;
     this.maxDaily = options.maxDaily || 6000;
+    this._baseRefillInterval = this.refillInterval;
   }
 
   refill() {
@@ -33,21 +34,21 @@ export class RateLimiter {
     if (this.dailyRequests >= this.maxDaily) {
       throw new Error('Daily request limit reached. Try again tomorrow.');
     }
-    if (this.tokens > 0) {
+    if (this.tokens > 0 && this.queue.length === 0) {
       this.tokens--;
       return true;
     }
-    return new Promise((resolve, reject) => {
-      if (this.queue.length >= this.maxQueueSize) {
-        return reject(new Error('Too many queued requests. Try again later.'));
-      }
 
+    if (this.queue.length >= this.maxQueueSize) {
+      throw new Error('Too many queued requests. Try again later.');
+    }
+
+    return new Promise((resolve, reject) => {
       const onAbort = () => {
         const idx = this.queue.indexOf(entry);
         if (idx !== -1) this.queue.splice(idx, 1);
         reject(new Error('Aborted'));
       };
-
       if (signal) {
         signal.addEventListener('abort', onAbort, { once: true });
       }
@@ -57,24 +58,33 @@ export class RateLimiter {
         if (signal) signal.removeEventListener('abort', onAbort);
       };
       this.queue.push(entry);
-      if (!this.processing) this.processQueue(signal);
+      if (!this.processing) this._processQueue(signal);
     });
   }
 
-  async processQueue(signal) {
+  async _processQueue(signal) {
     this.processing = true;
     while (this.queue.length > 0) {
       if (signal?.aborted) {
+        this.queue.forEach(item => {
+          if (item._cleanup) item._cleanup();
+          item.reject(new Error('Aborted'));
+        });
         this.queue = [];
         break;
       }
-      await this.waitWithSignal(this.refillInterval, signal);
+
       this.refill();
-      if (this.tokens <= 0) continue;
-      this.tokens--;
-      const item = this.queue.shift();
-      if (item._cleanup) item._cleanup();
-      item.resolve(true);
+      while (this.tokens > 0 && this.queue.length > 0) {
+        this.tokens--;
+        const item = this.queue.shift();
+        if (item._cleanup) item._cleanup();
+        item.resolve(true);
+      }
+
+      if (this.queue.length === 0) break;
+
+      await this.waitWithSignal(250, signal);
     }
     this.processing = false;
   }
@@ -109,7 +119,21 @@ export class RateLimiter {
       } catch (err) {
         if (err.message === 'Aborted') throw err;
         if (err.status === 429 && attempt < maxRetries) {
-          const wait = Math.min(1000 * Math.pow(2, attempt), 30000);
+          let wait;
+          const retryAfter = err.headers?.['retry-after'] ?? err.headers?.['Retry-After'];
+          if (retryAfter) {
+            wait = parseInt(retryAfter, 10) * 1000;
+          } else {
+            wait = Math.min(1000 * Math.pow(2, attempt), 30000);
+          }
+
+          this.tokens = 0;
+          this.refillInterval = Math.min(this.refillInterval * 1.5, 5000);
+          clearTimeout(this._restoreTimer);
+          this._restoreTimer = setTimeout(() => {
+            this.refillInterval = this._baseRefillInterval;
+          }, 30000);
+
           if (onRetry) onRetry(attempt + 1, wait);
           await this.waitWithSignal(wait, signal);
           continue;

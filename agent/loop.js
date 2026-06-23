@@ -57,7 +57,7 @@ function formatArgs(args) {
   }
 }
 
-export async function agentLoop(userText, canvasState, io, modelName, signal, requestConfirmation, socketId) {
+export async function agentLoop(userText, canvasState, io, modelName, signal, requestConfirmation, socketId, limitGroq = true) {
   if (signal?.aborted) return 'Execução cancelada pelo usuário.';
 
   const model = buildModel(modelName);
@@ -89,12 +89,16 @@ export async function agentLoop(userText, canvasState, io, modelName, signal, re
 
     let result;
     try {
-      result = await rateLimiter.withRetry(
-        () => model.invoke(messages, { tools: toolDefs }),
-        3,
-        signal,
-        (attempt, wait) => emitLog(io, 'rate_limit', `Rate limit: tentativa ${attempt}, aguardando ${wait}ms...`)
-      );
+      if (limitGroq) {
+        result = await rateLimiter.withRetry(
+          () => model.invoke(messages, { tools: toolDefs }),
+          3,
+          signal,
+          (attempt, wait) => emitLog(io, 'rate_limit', `Rate limit: tentativa ${attempt}, aguardando ${wait}ms...`)
+        );
+      } else {
+        result = await model.invoke(messages, { tools: toolDefs });
+      }
     } catch (err) {
       if (err.message === 'Aborted') return 'Execução cancelada pelo usuário.';
       if (err.message?.includes('tool_use') || err.message?.includes('tool')) {

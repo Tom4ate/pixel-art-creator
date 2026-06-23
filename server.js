@@ -52,6 +52,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('draw-pixel', ({ x, y, color }) => {
+    if (!/^#[0-9a-fA-F]{6}$/.test(color)) return;
     canvasState.drawPixel(x, y, color);
     io.emit('canvas-update', canvasState.toJSON());
   });
@@ -68,14 +69,21 @@ io.on('connection', (socket) => {
 
   socket.on('restore-version', ({ grid }) => {
     if (!grid || !Array.isArray(grid)) return;
+    const h = grid.length;
+    const w = grid[0]?.length || 0;
+    if (w === 0 || h === 0) return;
+    canvasState.width = w;
+    canvasState.height = h;
     canvasState.grid = grid.map(row => [...row]);
     canvasState.undoStack = [];
     io.emit('canvas-update', canvasState.toJSON());
+    io.emit('palette-update', canvasState.palette ? [...canvasState.palette] : null);
   });
 
   socket.on('chat-message', async (data) => {
     const text = typeof data === 'string' ? data : data?.text;
     const model = typeof data === 'string' ? undefined : data?.model;
+    const limitGroq = typeof data === 'string' ? true : data?.limitGroq !== false;
     if (!text || typeof text !== 'string') return;
 
     const controller = new AbortController();
@@ -84,7 +92,7 @@ io.on('connection', (socket) => {
     io.emit('agent-thinking', true);
 
     try {
-      const response = await agentLoop(text, canvasState, io, model, controller.signal, requestConfirmation, socket.id);
+      const response = await agentLoop(text, canvasState, io, model, controller.signal, requestConfirmation, socket.id, limitGroq);
       socket.emit('agent-response', response);
     } catch (err) {
       if (err.message === 'Aborted' || controller.signal.aborted) return;

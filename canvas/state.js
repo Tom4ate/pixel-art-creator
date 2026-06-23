@@ -38,6 +38,7 @@ export class CanvasState {
 
   drawPixel(x, y, color) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return false;
+    if (this.grid[y][x] === color) return true;
     this.pushUndo();
     this.grid[y][x] = color;
     return true;
